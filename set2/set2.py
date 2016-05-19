@@ -12,12 +12,10 @@ import random
 import json
 
 
-
-
 print '2.9 PKCS#7 padding'
 
 def padPKCS7(x, padto):
-	diff = padto - (len(x)%padto)
+	diff = (padto - (len(x)%padto)) % 16
 
 	padded = x + pack(diff, 'all')*diff
 
@@ -26,7 +24,6 @@ def padPKCS7(x, padto):
 expected = "YELLOW SUBMARINE\x04\x04\x04\x04"
 
 assert expected == padPKCS7("YELLOW SUBMARINE", 20)
-
 
 
 
@@ -90,7 +87,7 @@ assert cbc.encrypt(song) == file
 
 
 
-print '2.11 Encryption oracle'
+print '2.11 CBC-ECB Encryption oracle'
 
 def encryption_oracle(input_text):
 	key = os.urandom(16)
@@ -190,6 +187,7 @@ def find_next_byte(oracle, blocksize, knownbytes):
 	candidates = string.printable
 	cand_dict = {} # maps possible ciphertext blocks to printable characters
 	for cand in candidates:
+		# every candidate block of ciphertext is 16 bytes
 		block_of_interest = oracle(offset+cand)[0:blocksize]
 		cand_dict[block_of_interest] = cand
 
@@ -203,15 +201,15 @@ def find_next_byte(oracle, blocksize, knownbytes):
 	return None
 
 
-# flag_bytes = ''
-# while len(flag_bytes) < ecb_oracle_same_key(''):
-# 	new_byte = find_next_byte(ecb_oracle_same_key, blocksize, flag_bytes)
-# 	if new_byte is None:
-# 		break
-# 	flag_bytes += new_byte
+flag_bytes = ''
+while len(flag_bytes) < ecb_oracle_same_key(''):
+	new_byte = find_next_byte(ecb_oracle_same_key, blocksize, flag_bytes)
+	if new_byte is None:
+		break
+	flag_bytes += new_byte
 
-# expected = """Rollin' in my 5.0\nWith my rag-top down so my hair can blow\nThe girlies on standby waving just to say hi\nDid you stop? No, I just drove by\n"""
-# assert flag_bytes == expected
+expected = """Rollin' in my 5.0\nWith my rag-top down so my hair can blow\nThe girlies on standby waving just to say hi\nDid you stop? No, I just drove by\n"""
+assert flag_bytes == expected
 
 
 print '2.13 ECB cut-and-paste'
@@ -271,6 +269,7 @@ rand_prefix = os.urandom(random.randint(1, 43))
 def ecb_oracle_prefix(input_text):
 
 	s =	"""Um9sbGluJyBpbiBteSA1LjAKV2l0aCBteSByYWctdG9wIGRvd24gc28gbXkgaGFpciBjYW4gYmxvdwpUaGUgZ2lybGllcyBvbiBzdGFuZGJ5IHdhdmluZyBqdXN0IHRvIHNheSBoaQpEaWQgeW91IHN0b3A/IE5vLCBJIGp1c3QgZHJvdmUgYnkK"""
+	
 
 	plain_text = padPKCS7(rand_prefix + input_text + base64.b64decode(s), 16)
 	
@@ -310,7 +309,7 @@ def find_prefix_block_modulo_offset(prefix_oracle, blocksize):
 def find_next_byte_with_prefix(oracle, blocksize, knownbytes):
 	prefix_location = find_prefix_block_index(ecb_oracle_prefix, blocksize)*blocksize + find_prefix_block_modulo_offset(ecb_oracle_prefix, blocksize)
 
-	offset_len = (blocksize - len(knownbytes) % blocksize - 1)
+	offset_len = blocksize - (len(knownbytes)%blocksize) - 1 # continue cycling offset len from 15 to 0
 	extra_offset_for_prefix = blocksize - find_prefix_block_modulo_offset(ecb_oracle_prefix, blocksize)
 	# I need extra_offset_for_prefix to align the actual (blocksize-1) offset on a blocksize boundary
 
@@ -319,28 +318,28 @@ def find_next_byte_with_prefix(oracle, blocksize, knownbytes):
 	candidates = string.printable
 	cand_dict = {} # maps possible ciphertext blocks to printable characters
 	for cand in candidates:
-		block_of_interest = oracle(offset + knownbytes +cand)[prefix_location: prefix_location + len(offset) + len(knownbytes) + 1]
+		block_of_interest = oracle(offset + knownbytes + cand)[prefix_location: prefix_location + len(offset) + len(knownbytes) + 1]
 		cand_dict[block_of_interest] = cand
+		# keys are variable length blocks of ciphertext
 
-	#block_num to locate where the 16-byte ciphertext of interest is
 	oracle_block = oracle(offset)[prefix_location : prefix_location + len(offset) + len(knownbytes) + 1]
 	if oracle_block in cand_dict:
 		next_byte = cand_dict[oracle_block]
+		print 'next_byte', next_byte
 		return next_byte
 	return None
 
 
-# flag_bytes = ''
-# while len(flag_bytes) < ecb_oracle_prefix(''):
-# 	new_byte = find_next_byte_with_prefix(ecb_oracle_prefix, blocksize, flag_bytes)
-# 	if new_byte is None:
-# 		break
-# 	flag_bytes += new_byte
+flag_bytes = ''
+while len(flag_bytes) < ecb_oracle_prefix(''):
+	new_byte = find_next_byte_with_prefix(ecb_oracle_prefix, blocksize, flag_bytes)
+	if new_byte is None:
+		break
+	flag_bytes += new_byte
 
-# print flag_bytes
 
 expected = """Rollin' in my 5.0\nWith my rag-top down so my hair can blow\nThe girlies on standby waving just to say hi\nDid you stop? No, I just drove by\n"""
-# assert flag_bytes == expected
+assert flag_bytes == expected
 
 
 print '2.15 Validate PKCS#7'
@@ -348,16 +347,12 @@ print '2.15 Validate PKCS#7'
 def validate_and_strip_PKCS7(s):
 	byte = s[-1]
 	byte_int = unpack(byte, 'all')
-	if byte == 0 or s[-byte_int:] != byte * byte_int:
-		raise ValueError('Not PKCS7 padded!')
-	return s[0:-byte_int]
+	if byte == 0 or s[-byte_int:] != byte * byte_int or byte == "":
+		return False
+	return True
 
-assert validate_and_strip_PKCS7("ICE ICE BABY\x04\x04\x04\x04") == "ICE ICE BABY"
-try:
-	validate_and_strip_PKCS7("ICE ICE BABY\x05\x05\x05\x05")
-except ValueError:
-	pass
-	
+assert validate_and_strip_PKCS7("ICE ICE BABY\x04\x04\x04\x04")
+assert validate_and_strip_PKCS7("ICE ICE BABY\x05\x05\x05\x05") is False
 
 
 print '2.16 CBC Bitflipping attack'
@@ -396,4 +391,89 @@ ciphertext = ''.join(ciphertext)
 
 assert decrypt_and_check_admin(ciphertext)
 
+
+print '3.17 CBC Padding oracle holy shit fuck'
+	
+
+string_set = {"MDAwMDAwTm93IHRoYXQgdGhlIHBhcnR5IGlzIGp1bXBpbmc=",
+"MDAwMDAxV2l0aCB0aGUgYmFzcyBraWNrZWQgaW4gYW5kIHRoZSBWZWdhJ3MgYXJlIHB1bXBpbic=",
+"MDAwMDAyUXVpY2sgdG8gdGhlIHBvaW50LCB0byB0aGUgcG9pbnQsIG5vIGZha2luZw==",
+"MDAwMDAzQ29va2luZyBNQydzIGxpa2UgYSBwb3VuZCBvZiBiYWNvbg==",
+"MDAwMDA0QnVybmluZyAnZW0sIGlmIHlvdSBhaW4ndCBxdWljayBhbmQgbmltYmxl",
+"MDAwMDA1SSBnbyBjcmF6eSB3aGVuIEkgaGVhciBhIGN5bWJhbA==",
+"MDAwMDA2QW5kIGEgaGlnaCBoYXQgd2l0aCBhIHNvdXBlZCB1cCB0ZW1wbw==",
+"MDAwMDA3SSdtIG9uIGEgcm9sbCwgaXQncyB0aW1lIHRvIGdvIHNvbG8=",
+"MDAwMDA4b2xsaW4nIGluIG15IGZpdmUgcG9pbnQgb2g=",
+"MDAwMDA5aXRoIG15IHJhZy10b3AgZG93biBzbyBteSBoYWlyIGNhbiBibG93"}
+
+s = base64.b64decode(random.sample(string_set, 1)[0])
+# s  = base64.b64decode("MDAwMDA5aXRoIG15IHJhZy10b3AgZG93")
+
+rand_key = os.urandom(16)
+iv = os.urandom(16)
+
+def encrypt_random(input_text):
+	cipher = Cipher(algorithm = algorithms.AES(rand_key), mode = modes.ECB(), backend=default_backend())
+	cbc = CBC(cipher, iv)
+
+	padded = padPKCS7(input_text, 16)
+
+	return cbc.encrypt(padded)
+
+def padding_oracle(ciphertext):
+	cipher = Cipher(algorithm = algorithms.AES(rand_key), mode = modes.ECB(), backend=default_backend())
+	cbc = CBC(cipher, iv)
+
+	decrypted = cbc.decrypt(ciphertext)
+
+	if validate_and_strip_PKCS7(decrypted) is False:
+		# if not valid padding
+		return False
+	return True
+
+
+def padding_oracle_attack(padding_oracle, ciphertext, blocksize):
+	blocks = [ciphertext[i:i+blocksize] for i in xrange(0, len(ciphertext), blocksize)]
+
+	flag_str = ""
+
+	for i in range(0, len(ciphertext), blocksize):
+		ciphertext_piece = ciphertext if i == 0 else ciphertext[:-i]
+		block_bytes = decipher_block(ciphertext_piece, 16)
+		flag_str = block_bytes + flag_str
+	return flag_str
+
+def decipher_block(ciphertext, blocksize):
+	
+	blockstr = ""
+	for j in xrange(blocksize):
+		char = decipher_block_previous_byte(ciphertext, blockstr, 16)
+		blockstr = char + blockstr
+
+	return blockstr
+
+def decipher_block_previous_byte(ciphertext, known_last_bytes, blocksize):
+	num_padding_byte = len(known_last_bytes) + 1
+	# print 'num_padding_byte', num_padding_byte
+
+	offset_pad = 'A'* (blocksize - num_padding_byte)
+	
+	prev_block = ciphertext[-32:-16] if len(ciphertext) > 16 else iv
+	for cand_ord in xrange(0, 256):
+		# tricky xors here
+		# test all possible plaintext characters by xor-ing with padding num and previous block's ciphertext char, seeing if I xor out the correct plaintext char and get the padding num
+		# fill in valid padding by xor-ing out known bytes and replacing with padding bytes
+		pad_str = offset_pad + xor(prev_block[-num_padding_byte], cand_ord, num_padding_byte)
+		pad_str = pad_str + xor(prev_block[-num_padding_byte+1:], known_last_bytes, num_padding_byte) if len(known_last_bytes) > 0 else pad_str
+		assert len(pad_str) == blocksize
+		new_ciphertext = ciphertext[:-32] + pad_str + ciphertext[-16:]
+
+		if padding_oracle(new_ciphertext):
+			return chr(cand_ord)
+
+
+encrypted = encrypt_random(s)
+# print padding_oracle_attack(padding_oracle, encrypted, 16)
+
+print padding_oracle_attack(padding_oracle, encrypted, 16)
 
