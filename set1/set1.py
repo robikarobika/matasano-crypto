@@ -103,11 +103,14 @@ def find_singlechar_key_xor(msg):
 		word_score = 0
 
 		for c in result:
+			c = c.lower()
 			if c in character_frequency:
-				word_score += character_frequency[c.lower()]
+				word_score += character_frequency[c]
+
 		cand_words.append((result, word_score, char))
 
 	max_tuple = max(cand_words, key=op.itemgetter(1))
+	print max_tuple
 
 	return max_tuple
 
@@ -164,9 +167,14 @@ def find_key_length(x):
 
 def breakRepeatingXor(x, keysize):
 	blocks = [x[i:i+keysize] for i in range(0, len(x), keysize)]
+	print list(blocks)
+
 	blocks = it.izip_longest(*blocks, fillvalue='0')
+	# print list(blocks)
 
 	block_list = [''.join(msg) for msg in blocks]
+	print block_list
+	# block_list contains the 1st, 2nd, etc... chars of each block of length keysize, grouped together
 
 	char_freqs = [find_singlechar_key_xor(''.join(msg))[2] for msg in block_list]
 	return ''.join(char_freqs)
