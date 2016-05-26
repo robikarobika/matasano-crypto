@@ -10,6 +10,11 @@ from cryptography.hazmat.backends import default_backend
 import os
 import random
 import json
+import sys
+sys.path.append('..')
+
+from set1_utils import *
+from set2_utils import *
 
 
 print '2.9 PKCS#7 padding'
@@ -26,7 +31,6 @@ expected = "YELLOW SUBMARINE\x04\x04\x04\x04"
 assert expected == padPKCS7("YELLOW SUBMARINE", 20)
 
 
-
 print '2.10 Implemented CBC!'
 
 iv = '\x00\x00\x00'
@@ -34,48 +38,7 @@ iv = '\x00\x00\x00'
 key = "YELLOW SUBMARINE"
 
 file = base64.b64decode(open('10.txt', 'r').read())
-
-class CBC():
-
-	def __init__(self, cipher, iv):
-		self.cipher = cipher
-		self.iv = iv
-		self.blocksize = 16
-
-
-	def encrypt(self, plaintext):
-		e = self.cipher.encryptor()
-
-		# plaintext = padPKCS7(plaintext, 16)
-
-		blocks = [plaintext[i:i+self.blocksize] for i in xrange(0, len(plaintext), self.blocksize)]
-
-		prev_xor_block = self.iv
-		ciphertext = ""
-		for i in xrange(0, len(blocks)):
-			pre_aes_block = xor(blocks[i], prev_xor_block)
-
-			current_cipher_block = e.update(pre_aes_block)
-			prev_xor_block = current_cipher_block
-			ciphertext += current_cipher_block
-
-		return ciphertext
-
-	def decrypt(self, ciphertext):
-		plaintext = ""
-		d = self.cipher.decryptor()
-		blocks = [ciphertext[i:i+self.blocksize] for i in xrange(0, len(ciphertext), self.blocksize)]
-
-		decrypted_block = d.update(blocks[0])
-		plaintext += xor(decrypted_block, self.iv)
-
-		for i in xrange(1, len(blocks)):
-			decrypted_block = d.update(blocks[i])
-			# print decrypted_block
-
-			plaintext += xor(decrypted_block, blocks[i-1])
-
-		return plaintext
+print 'file', file
 
 
 cipher = Cipher(algorithm = algorithms.AES("YELLOW SUBMARINE"), mode = modes.ECB(), backend=default_backend())
@@ -212,6 +175,7 @@ expected = """Rollin' in my 5.0\nWith my rag-top down so my hair can blow\nThe g
 assert flag_bytes == expected
 
 
+
 print '2.13 ECB cut-and-paste'
 # Skipped, but the point is that you encrypt the word 'admin' alone, padded with 11 zeroes, and append it to another profile string, cutting out 'user'
 
@@ -258,7 +222,6 @@ e = cipher.encryptor()
 profile_padded = padPKCS7(profile, 16)
 
 ciphertext = e.update(profile_padded) + e.finalize()
-# print ciphertext
 
 
 
@@ -307,9 +270,10 @@ def find_prefix_block_modulo_offset(prefix_oracle, blocksize):
 				return blocksize - i
 
 def find_next_byte_with_prefix(oracle, blocksize, knownbytes):
+	# find index of last char of prefix
 	prefix_location = find_prefix_block_index(ecb_oracle_prefix, blocksize)*blocksize + find_prefix_block_modulo_offset(ecb_oracle_prefix, blocksize)
 
-	offset_len = blocksize - (len(knownbytes)%blocksize) - 1 # continue cycling offset len from 15 to 0
+	offset_len = blocksize - (len(knownbytes) % blocksize) - 1 # continue cycling offset len from 15 to 0
 	extra_offset_for_prefix = blocksize - find_prefix_block_modulo_offset(ecb_oracle_prefix, blocksize)
 	# I need extra_offset_for_prefix to align the actual (blocksize-1) offset on a blocksize boundary
 
@@ -325,7 +289,6 @@ def find_next_byte_with_prefix(oracle, blocksize, knownbytes):
 	oracle_block = oracle(offset)[prefix_location : prefix_location + len(offset) + len(knownbytes) + 1]
 	if oracle_block in cand_dict:
 		next_byte = cand_dict[oracle_block]
-		print 'next_byte', next_byte
 		return next_byte
 	return None
 

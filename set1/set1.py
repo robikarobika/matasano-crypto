@@ -9,36 +9,10 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 
 import os
+import sys
+sys.path.append('..')
+from set1_utils import character_frequency, find_singlechar_key_xor, breakRepeatingXor
 
-character_frequency = {
-	'a': 0.0651738,
-	'b': 0.0124248,
-	'c': 0.0217339,
-	'd': 0.0349835,
-	'e': 0.1041442,
-	'f': 0.0197881,
-	'g': 0.0158610,
-	'h': 0.0492888,
-	'i': 0.0558094,
-	'j': 0.0009033,
-	'k': 0.0050529,
-	'l': 0.0331490,
-	'm': 0.0202124,
-	'n': 0.0564513,
-	'o': 0.0596302,
-	'p': 0.0137645,
-	'q': 0.0008606,
-	'r': 0.0497563,
-	's': 0.0515760,
-	't': 0.0729357,
-	'u': 0.0225134,
-	'v': 0.0082903,
-	'w': 0.0171272,
-	'x': 0.0013692,
-	'y': 0.0145984,
-	'z': 0.0007836,
-	' ': 0.1918182
-}
 
 def hextobase64(s):
 	s = s.decode("hex") #same as a2b_hex, same as unhexlify
@@ -72,7 +46,6 @@ expected =  "746865206b696420646f6e277420706c6179"
 # print binascii.unhexlify(inp2)
 
 
-
 # print 'fixed_xor', fixed_xor(inp1, inp2)
 res = fixed_xor(inp1, inp2)
 # print 'res', res
@@ -92,27 +65,27 @@ def fixed_xor_any_len(s1, s2):
 
 msg = "1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736"
 
-def find_singlechar_key_xor(msg):
-	#takes in a byte string msg
-	candidate_keys = string.printable
+# def find_singlechar_key_xor(msg):
+# 	#takes in a byte string msg
+# 	candidate_keys = string.printable
 
-	cand_words = []
+# 	cand_words = []
 
-	for char in candidate_keys:
-		result = xor(msg, char)
-		word_score = 0
+# 	for char in candidate_keys:
+# 		result = xor(msg, char)
+# 		word_score = 0
 
-		for c in result:
-			c = c.lower()
-			if c in character_frequency:
-				word_score += character_frequency[c]
+# 		for c in result:
+# 			c = c.lower()
+# 			if c in character_frequency:
+# 				word_score += character_frequency[c]
 
-		cand_words.append((result, word_score, char))
+# 		cand_words.append((result, word_score, char))
 
-	max_tuple = max(cand_words, key=op.itemgetter(1))
-	print max_tuple
+# 	max_tuple = max(cand_words, key=op.itemgetter(1))
+# 	print max_tuple
 
-	return max_tuple
+# 	return max_tuple
 
 print "1.3 Single char fixed xor"
 assert find_singlechar_key_xor(binascii.unhexlify(msg))[0] == "Cooking MC's like a pound of bacon"
@@ -147,11 +120,11 @@ def hamming(str1, str2):
 
 # print hamming('this is a test', 'wokka wokka!!!')
 
-x = base64.b64decode(open('6.txt', 'r').read())
 
 def find_key_length(x):
 	key_dists = []
 
+	#find keysize that creates blocks with minimum hamming distance 
 	for keysize in range(2, 41):
 		blocks = [x[i:i+keysize] for i in range(0, len(x), keysize)][0:4]
 		pairs = list(it.combinations(blocks, 2))
@@ -165,21 +138,22 @@ def find_key_length(x):
 
 	return min(key_dists, key=op.itemgetter(1))[0]
 
-def breakRepeatingXor(x, keysize):
-	blocks = [x[i:i+keysize] for i in range(0, len(x), keysize)]
-	print list(blocks)
+# def breakRepeatingXor(x, keysize):
+# 	blocks = [x[i:i+keysize] for i in range(0, len(x), keysize)]
+# 	print list(blocks)
 
-	blocks = it.izip_longest(*blocks, fillvalue='0')
-	# print list(blocks)
+# 	blocks = it.izip_longest(*blocks, fillvalue='0')
+# 	# print list(blocks)
 
-	block_list = [''.join(msg) for msg in blocks]
-	print block_list
-	# block_list contains the 1st, 2nd, etc... chars of each block of length keysize, grouped together
+# 	block_list = [''.join(msg) for msg in blocks]
+# 	print block_list
+# 	# block_list contains the 1st, 2nd, etc... chars of each block of length keysize, grouped together
 
-	char_freqs = [find_singlechar_key_xor(''.join(msg))[2] for msg in block_list]
-	return ''.join(char_freqs)
+# 	char_freqs = [find_singlechar_key_xor(''.join(msg))[2] for msg in block_list]
+# 	return ''.join(char_freqs)
 
 print '1.6 Vigenere cipher break repeating xor'
+x = base64.b64decode(open('6.txt', 'r').read())
 keylen = find_key_length(x)
 assert keylen == 29
 
@@ -228,10 +202,5 @@ def hamming_score_line(line):
 
 min_line_num = min(lines, key=hamming_score_line)[0]
 assert min_line_num == 133
-
-
-
-
-
 
 
