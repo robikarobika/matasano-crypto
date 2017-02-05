@@ -18,6 +18,7 @@ sys.path.append('..')
 from set1_utils import *
 from set3_utils import *
 from set2_utils import *
+from set4_utils import *
 
 
 print '4.25 Break read/write AES CTR'
@@ -134,7 +135,7 @@ ciphertext = ciphertext[:16] + '\x00'*16 + ciphertext[:16] + ciphertext[48:]
 # by inserting a block of \x00, when we CBC decrypt block 3, we recover the 'plaintext' of block 1 that has not been changed at all
 # , having been xor'd with all 0's
 # we also obviously have the plaintext of block 1, which we got by xor-ing by the IV
-# so, recovering the IV is trivial — we simply xor out the 'plaintext' from block 1 to get the IV
+# so, recovering the IV is trivial - we simply xor out the 'plaintext' from block 1 to get the IV
 
 cipher = Cipher(algorithm = algorithms.AES(rand_key), mode = modes.ECB(), backend=default_backend())
 cbc = CBC(cipher, iv)
@@ -143,4 +144,71 @@ modified_plaintext = cbc.decrypt(ciphertext)
 found_key = xor(modified_plaintext[:16], modified_plaintext[32:48]) #xor out the 'plaintext' from block 1 to get the IV
 
 assert rand_key == found_key
+
+print '4.29 break SHA1 keyed mac with sign extension'
+
+
+key = os.urandom(16)
+
+message = "comment1=cooking%20MCs;userdata=foo;comment2=%20like%20a%20pound%20of%20bacon"
+message_digest = authsha1(key, message)
+
+
+def sha1_pad(message):
+	padding = ''
+
+	# append the bit '1' to the message
+	padding += b'\x80'
+	
+	# append 0 <= k < 512 bits '0', so that the resulting message length (in bytes)
+	# is congruent to 56 (mod 64)
+	padding += b'\x00' * ((56 - (len(message) + 1) % 64) % 64)
+	
+	# append length of message (before pre-processing), in bits, as 64-bit big-endian integer
+	message_bit_length = len(message) * 8
+	padding += struct.pack(b'>Q', message_bit_length)
+
+	return message + padding
+
+def validate_oracle(message, digest):
+	return authsha1(key, message) == digest
+
+# need to find length of key. To do so, need to try keys of all lengths, each time substringing out the key  
+
+
+def forgeHash(message, message_digest, extension_data):
+
+	paddedMessageWithKey = sha1_pad(key + message) + extension_data
+	#recreate internal state
+	# the forged_digest picks up at the internal SHA1 5-register state of the valid key+message+padding
+	# and adds my evil extension data to that internal state
+	# message_byte_length is length of everything processed so far, which would be everything except the new extension data
+
+	h = unpack_many(message_digest, word_size = 32, endianness='big')
+	# print 'h', h
+	forged_digest = SHA1(h, message_byte_length = len(paddedMessageWithKey) - len(extension_data)).update(extension_data).digest()
+
+	for keylen_guess in xrange(1,40):
+		# print keylen_guess
+
+		paddedMessageSubstring = paddedMessageWithKey[keylen_guess:]
+
+		# then, if we guessed the correct keylen_guess, we properly substring-ed out the key, and
+		# the remaining substring, once appended to the key on server side, will have proper padding
+		# and digest to the same thing as the forged_digest
+	 	
+	 	# print 'forged_message', authsha1(key, paddedMessageSubstring)
+
+		if validate_oracle(paddedMessageSubstring, forged_digest):
+			# we found the correct keylen_guess
+			# and we can return the valid message and valid digest of the message 
+			return paddedMessageSubstring, forged_digest
+
+	
+message, forged_digest = forgeHash(message, message_digest, ';admin=true')
+print 'message', message
+
+
+
+def 
 

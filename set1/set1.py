@@ -1,6 +1,7 @@
-import binascii 
+#!/usr/local/bin/python
+
+import binascii
 import base64
-import Crypto
 from pwn import *
 import itertools as it
 from pprint import *
@@ -16,6 +17,7 @@ from set1_utils import character_frequency, find_singlechar_key_xor, breakRepeat
 
 def hextobase64(s):
 	s = s.decode("hex") #same as a2b_hex, same as unhexlify
+	print s
 	return binascii.b2a_base64(s).rstrip("\n")
 
 # Multiple ways : one requires se be a byte string, with b in front
@@ -25,7 +27,7 @@ s = b"49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f
 
 # Other way
 s = "49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d"
- 
+
 expected = "SSdtIGtpbGxpbmcgeW91ciBicmFpbiBsaWtlIGEgcG9pc29ub3VzIG11c2hyb29t"
 
 print "1.1 hex to base64"
@@ -40,7 +42,7 @@ def fixed_xor(s1, s2):
 
 inp1 = "686974207468652062756c6c277320657965"
 inp2 = "1c0111001f010100061a024b53535009181c"
-expected =  "746865206b696420646f6e277420706c6179" 
+expected =  "746865206b696420646f6e277420706c6179"
 
 # print inp2.decode("hex") #decode and unhexlify do the same thing
 # print binascii.unhexlify(inp2)
@@ -48,7 +50,7 @@ expected =  "746865206b696420646f6e277420706c6179"
 
 # print 'fixed_xor', fixed_xor(inp1, inp2)
 res = fixed_xor(inp1, inp2)
-# print 'res', res
+print 'res', res
 res = binascii.hexlify(res)
 # print 'res', res
 
@@ -95,13 +97,14 @@ assert find_singlechar_key_xor(binascii.unhexlify(msg))[0] == "Cooking MC's like
 print "1.4 Single char fixed xor on 4.txt"
 
 # lines = open('4.txt', 'r').read()
-
+#
 # words = []
 # for line in lines.split("\n"):
 # 	line_xor_char = find_singlechar_key_xor(binascii.unhexlify(line))
 # 	words.append(line_xor_char)
-
-# max_tuple = max(words, key=op.itemgetter(1))	
+#
+# max_tuple = max(words, key=op.itemgetter(1))
+# print max_tuple
 # assert max_tuple[0] == 'Now that the party is jumping\n'
 
 
@@ -124,17 +127,17 @@ def hamming(str1, str2):
 def find_key_length(x):
 	key_dists = []
 
-	#find keysize that creates blocks with minimum hamming distance 
+	#find keysize that creates blocks with minimum hamming distance
 	for keysize in range(2, 41):
 		blocks = [x[i:i+keysize] for i in range(0, len(x), keysize)][0:4]
 		pairs = list(it.combinations(blocks, 2))
 		hamsum = it.starmap(hamming, pairs)
 		normalized = float(reduce(lambda x, y: x+y, hamsum))/keysize
 		key_dists.append((keysize, normalized))
-		# hamming = 
+		# hamming =
 	# hamming()
 
-	#to do this in pwnlib, 
+	#to do this in pwnlib,
 
 	return min(key_dists, key=op.itemgetter(1))[0]
 
@@ -158,6 +161,7 @@ keylen = find_key_length(x)
 assert keylen == 29
 
 key = breakRepeatingXor(x, keylen)
+print "key", key
 assert key == 'Terminator X: Bring the noise'
 
 
@@ -179,6 +183,8 @@ lines = file.split("\n")
 
 lines = [(i+1, binascii.unhexlify(l)) for i, l in enumerate(lines)]
 
+print lines
+
 def hamming_score_line(line):
 	blocks = [line[1][i:i+16] for i in range(0, len(x), 16)][0:4]
 
@@ -196,11 +202,9 @@ def hamming_score_line(line):
 	# 		same += 1
 	# return same
 
-	
+
 # sorted_list = sorted(lines, key=hamming_score_line)
 # print [line[0] for line in sorted_list]
 
 min_line_num = min(lines, key=hamming_score_line)[0]
 assert min_line_num == 133
-
-

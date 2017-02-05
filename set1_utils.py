@@ -1,12 +1,8 @@
-import binascii 
-import base64
-import Crypto
+
 from pwn import *
 import itertools as it
 from pprint import *
 import operator as op
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.backends import default_backend
 
 import os
 
@@ -40,12 +36,14 @@ character_frequency = {
 	' ': 0.1918182
 }
 
+candidate_keys = [chr(i) for i in xrange(0, 256)]
+
+
 def find_singlechar_key_xor(msg):
-	""" takes in a byte string msg 
+	""" takes in a byte string msg
 		returns a tuple (result, word_score, char)
-	
+
 	"""
-	candidate_keys = [chr(i) for i in xrange(0, 256)]
 
 	cand_words = []
 
@@ -67,15 +65,12 @@ def find_singlechar_key_xor(msg):
 def breakRepeatingXor(x, keysize):
 	blocks = [x[i:i+keysize] for i in range(0, len(x), keysize)]
 
-	# blocks = it.izip_longest(*blocks, fillvalue='0')
-	blocks = it.izip(*blocks)
-	# print list(blocks)
+	blocks = it.izip_longest(*blocks, fillvalue='0')
+	# blocks = it.izip(*blocks)
+	# print len(list(blocks))
 
 	block_list = [''.join(msg) for msg in blocks]
 	# block_list contains the 1st, 2nd, etc... chars of each block of length keysize, grouped together
 
 	char_freqs = [find_singlechar_key_xor(''.join(msg))[2] for msg in block_list]
 	return ''.join(char_freqs)
-
-
-	

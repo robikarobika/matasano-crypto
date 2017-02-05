@@ -1,6 +1,6 @@
 def fixed_xor(s1, s2):
 	s1 = s1.decode("hex")
-	s2 = s2.decode("hex").
+	s2 = s2.decode("hex")
 
 	return s1 ^ s2
 
