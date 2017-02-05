@@ -1,5 +1,3 @@
-import binascii 
-import base64
 from pwn import *
 import itertools as it
 from pprint import *
@@ -30,8 +28,10 @@ class CBC():
 		prev_xor_block = self.iv
 		ciphertext = ""
 		for i in xrange(0, len(blocks)):
+			#xor with previous block
 			pre_aes_block = xor(blocks[i], prev_xor_block)
 
+			# Encrypt with cipher algorithm
 			current_cipher_block = e.update(pre_aes_block)
 			prev_xor_block = current_cipher_block
 			ciphertext += current_cipher_block
