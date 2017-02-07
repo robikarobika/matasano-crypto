@@ -1,4 +1,4 @@
-import binascii 
+import binascii
 import base64
 from pwn import *
 import itertools as it
@@ -34,12 +34,12 @@ rand_key = os.urandom(16)
 key = b'\xa3\xc9\xe7\xedmZU\x1e\xac\x15\xe2\xaf\xb4$\xa9{'
 
 
-file = base64.b64decode(open('19.txt', 'r').read())
+file_lines = base64.b64decode(open('19.txt', 'r').read())
 
 def ctr_fixed_nonce(s):
 	return CTR(Cipher(algorithm = algorithms.AES(rand_key), mode = modes.ECB(), backend=default_backend()), 0).encrypt(s)
 
-encrypted_texts = [ctr_fixed_nonce(l) for l in file.split('\n')]
+encrypted_texts = [ctr_fixed_nonce(l) for l in file_lines.split('\n')]
 
 block_list = it.izip_longest(*encrypted_texts, fillvalue='0')
 
@@ -48,28 +48,24 @@ block_list = it.izip_longest(*encrypted_texts, fillvalue='0')
 print '3.20, break fixed-nonce CTR statistically'
 
 
-# file = open('20.txt', 'rb').read()
+file_lines = open('20.txt', 'rb').read()
 
-# encrypted_texts = [ctr_fixed_nonce(base64.b64decode(l)) for l in file.split('\n')][:-1]
+encrypted_texts = [ctr_fixed_nonce(base64.b64decode(l)) for l in file_lines.split('\n')][:-1]
 
 # min_length = len(min(encrypted_texts, key=len))
-# print 'min_length', min_length
-
 # truncated_encrypted_texts = [text[:min_length] for text in encrypted_texts]
+#
 # # print 'truncated_encrypted_texts encrypted_texts', truncated_encrypted_texts
-# transpose_encrypted_texts = it.izip(*truncated_encrypted_texts)
-# transpose_encrypted_texts = [''.join(row) for row in transpose_encrypted_texts]
 
-# # keystream = ""
-# # for row in transpose_encrypted_texts:
-# # 	char = find_singlechar_key_xor(row)[2]
-# # 	print 'char', repr(char)
-# # 	keystream += char
+max_length = len(max(encrypted_texts, key=len))
+print max_length
 
-# # print repr(keystream)
+padded_encrypted_texts = [text.ljust(max_length, '\x00') for text in encrypted_texts]
 
-# keystream = breakRepeatingXor("".join(truncated_encrypted_texts), min_length)
-# print repr(keystream)
+# print "".join(padded_encrypted_texts)
+
+keystream = breakRepeatingXor("".join(padded_encrypted_texts), max_length)
+print "KEYSTREAM", repr(keystream)
 
 # for i, msg in enumerate(encrypted_texts):
 # 	print i, xor(msg, keystream)
@@ -88,7 +84,7 @@ def random_wait():
 	time.sleep(random.randint(40, 1000))
 
 	mt = MT19937(int(time.time()))
-	
+
 	time.sleep(random.randint(40, 1000))
 
 	return mt.get_number()
@@ -106,42 +102,42 @@ def setBit(value, index, new_bit):
 
 
 def unRightShiftXor(binary_str, shift):
-	result = 0
+	orig_bits = 0
 
 	for i in xrange(32):
-		# get bit at index i of result
-		bit = getBit(binary_str, i)
+		# get bit at index i of orig_bits
+		output_bit = getBit(binary_str, i)
 
-		# undo the xor with the shifted original bitstring at that index 
+		# undo the xor with the shifted original bitstring at that index
 		# (i - shift) index of binary_str essentially undoes the shift operation by grabbing the correct bit from the unmodified, original bit_str
-		# NOT the shifted and xor'd binary_str, but rather result as it's being reconstructed
+		# NOT the shifted and xor'd binary_str, but rather orig_bits as it's being reconstructed
 		# if I use binary_str, will not work if the shift is <16, because after [shift] bits I'd be xor-ing with modified bits,
 		# not the original bits
-		new_bit = bit ^ getBit(result, i - shift)
+		recovered_bit = output_bit ^ getBit(orig_bits, i - shift)
 
-		# set the bit at index i in the result to be the recovered bit
-		result = setBit(result, i, new_bit)
+		# set the bit at index i in the orig_bits to be the recovered bit
+		orig_bits = setBit(orig_bits, i, recovered_bit)
 
-	return result
+	return orig_bits
 
 def unLeftShiftXorAnd(binary_str, shift, and_val):
 
-	result = 0
+	orig_bits = 0
 
 	for i in reversed(xrange(32)):
 		# have to build from the right side because I need to grab bits from the right side of the original as it's being reconstructed
-		# get bit at index i of result
-		bit = getBit(binary_str, i)
+		# get bit at index i of orig_bits
+		output_bit = getBit(binary_str, i)
 
-		# undo the xor with the shifted original bitstring at that index 
+		# undo the xor with the shifted original bitstring at that index
 		# undo_xor_bit needs to be modified before I can xor it. we have to apply the mask. We're not reversing the &, just applying it
 		# I can then xor to recover the original bit
-		# again, I need result here, not binary_str
-		undo_xor_bit = getBit(result, i + shift) & getBit(and_val, i)
-		new_bit = bit ^ undo_xor_bit
+		# again, I need orig_bits here, not binary_str
+		undo_xor_bit = getBit(orig_bits, i + shift) & getBit(and_val, i)
+		recovered_bit = output_bit ^ undo_xor_bit
 
-		# set the bit at index i in the result to be the recovered bit
-		result = setBit(result, i, new_bit)
+		# set the bit at index i in the orig_bits to be the recovered bit
+		orig_bits = setBit(orig_bits, i, recovered_bit)
 
 	return result
 
@@ -199,7 +195,7 @@ def break_mt_oracle(oracle):
 	prefix_len = len(oracle_ciphertext) - len(plaintext)
 
 	for i in xrange(2**16):
-		# A's padded to length of oracle ciphertext so that we get the exact same blockstream encrypting 
+		# A's padded to length of oracle ciphertext so that we get the exact same blockstream encrypting
 		# the 'A's past prefix_len. I missed this, thought I only needed 14 'A's when I actually needed 14 + prefix_len
 		padded = 'A' * len(oracle_ciphertext)
 		if MT19937Cipher(i).encrypt(padded)[prefix_len:] == oracle_ciphertext[prefix_len:]:
@@ -212,5 +208,3 @@ print 'rand seed',rand_seed
 print 'found key', found_key
 
 assert rand_seed == found_key
-	
-

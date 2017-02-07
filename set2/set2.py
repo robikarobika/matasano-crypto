@@ -421,18 +421,18 @@ def decipher_block(ciphertext, blocksize):
 	return blockstr
 
 def decipher_block_previous_byte(ciphertext, known_last_bytes, blocksize):
-	num_padding_byte = len(known_last_bytes) + 1
-	# print 'num_padding_byte', num_padding_byte
+	desired_padding_byte = len(known_last_bytes) + 1
+	# print 'desired_padding_byte', desired_padding_byte
 
-	offset_pad = 'A'* (blocksize - num_padding_byte)
+	offset_pad = 'A'* (blocksize - desired_padding_byte)
 
 	prev_block = ciphertext[-32:-16] if len(ciphertext) > 16 else iv
 	for cand_ord in xrange(0, 256):
 		# tricky xors here
 		# test all possible plaintext characters by xor-ing with padding num and previous block's ciphertext char, seeing if I xor out the correct plaintext char and get the padding num
 		# fill in valid padding by xor-ing out known bytes and replacing with padding bytes
-		pad_str = offset_pad + xor(prev_block[-num_padding_byte], cand_ord, num_padding_byte)
-		pad_str = pad_str + xor(prev_block[-num_padding_byte+1:], known_last_bytes, num_padding_byte) if len(known_last_bytes) > 0 else pad_str
+		pad_str = offset_pad + xor(prev_block[-desired_padding_byte], cand_ord, desired_padding_byte)
+		pad_str = pad_str + xor(prev_block[-desired_padding_byte+1:], known_last_bytes, desired_padding_byte) if len(known_last_bytes) > 0 else pad_str
 		assert len(pad_str) == blocksize
 		new_ciphertext = ciphertext[:-32] + pad_str + ciphertext[-16:]
 

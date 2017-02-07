@@ -247,10 +247,13 @@ user-controlled input:
       0                     1
 AAAAAAAAAAAAAAAA  \x00admin\x00true\x00
 
-modified ciphertext:
-\x59ZZZZZ\x61ZZZZ\x59ZZZZ XXXXXXXXXXXXXXXX
+ciphertext:
+XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
 
-In XOR decryption step, the 2nd block would normally XOR to recover \x00admin\x00true\x00, but now that I've done an additional XOR on three bytes by modifying ciphertext, the 2nd block XORs to a plaintext of \x59admin\x61true\x59.
+modified ciphertext:
+\x59XXXXX\x61XXXX\x59XXXX XXXXXXXXXXXXXXXX
+
+In XOR step of CBC decryption, the 2nd block would normally XOR to recover \x00admin\x00true\x00, but now that I've done an additional XOR on three bytes by modifying ciphertext, the 2nd block XORs to a plaintext of \x59admin\x61true\x59.
 ```
 
 Done with set2!

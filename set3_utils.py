@@ -1,4 +1,4 @@
-import binascii 
+import binascii
 import base64
 from pwn import *
 import itertools as it
@@ -108,8 +108,3 @@ class MT19937Cipher():
 			keystream = keystream[:len(plaintext)]
 
 		return xor(plaintext, keystream)
-
-
-
-
-
