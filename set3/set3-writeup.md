@@ -8,6 +8,7 @@ We have an oracle function that takes in a ciphertext and decrypts it, returning
 
 
 The process behind the attack on each block is:
+
 1. For each byte, starting at the last position, modify the ciphertext in the previous block, cycling through all 256 possibilities for the plaintext until I find the correct one. Here's the explanation of how I make and check my guesses.
 
   For the currently examined block, remember that I can modify the previous block's ciphertext, which will be XORed with this block's intermediate state to get a modified plaintext. What is the goal for the modified plaintext? It's to get the proper padding bytes at the end of it!
