@@ -139,7 +139,7 @@ def unLeftShiftXorAnd(binary_str, shift, and_val):
 		# set the bit at index i in the orig_bits to be the recovered bit
 		orig_bits = setBit(orig_bits, i, recovered_bit)
 
-	return result
+	return orig_bits
 
 def untemper(val):
 	val = unRightShiftXor(val, 18)
@@ -183,7 +183,8 @@ print '3.22, Breaking MT Stream Cipher'
 rand_seed = unpack(os.urandom(2), 'all')
 
 def MToracle(plaintext):
-	rand_prefix = os.urandom(random.randint(2, 40))
+	# rand_prefix = os.urandom(random.randint(2, 40))
+	rand_prefix = 'RRR'
 	return MT19937Cipher(rand_seed).encrypt(rand_prefix + plaintext)
 
 def break_mt_oracle(oracle):
@@ -193,6 +194,7 @@ def break_mt_oracle(oracle):
 	oracle_ciphertext = MToracle(plaintext)
 
 	prefix_len = len(oracle_ciphertext) - len(plaintext)
+	print prefix_len
 
 	for i in xrange(2**16):
 		# A's padded to length of oracle ciphertext so that we get the exact same blockstream encrypting

@@ -282,21 +282,37 @@ cloned_mt.state = cloned_mt_state
 
 We first need to create an  MT19937 stream cipher, which operates much like CTR mode. The keystream, the RNG output, is simply XORed to decrypt or encrypt.
 
-We have an oracle 
+We have an oracle that appends some random prefix to our plaintext before encrypting it using the MTR Stream cipher.
 
-We first find the prefix length,
+We first find the prefix length, by simply subtracting the length of the plaintext from the len of oracle-returned ciphertext — the added length in the ciphertext must be due to the prefix, since there's no padding in a stream cipher.
 
 ```
+Step 1:
+plaintext:
+AAAAAAAAAAAAAA
+
+encrypted in oracle:
+|rand_prefix|
+|    |
+RRRRRR AAAAAAAAAAAAAA
+|len(oracle_ciphertext)|
 
 
+Step 2:
 padded:
 |prefix_len|
 |    |
-AAAAAA AAAAAAAAAAAA
+AAAAAA AAAAAAAAAAAAAA
+|len(oracle_ciphertext)|
 
+       |-COMPARE ENC-|  
 ```
 
+We then iterate through all possible seed values, 1...2<sup>16</sup>. We create a MT Cipher with each seed, encrypting our `padded` data and seeing if it gives the same ciphertext as the oracle did. (Remember to slice out the random prefix when comparing!) If the ciphertexts match, we have found our seed!
 
-We iterate through all possible seed values, 1..2<sup>16</sup>. We create a MT Cipher with each seed, encrypting our padded data and seeing if it gives the same ciphertext
-
-We can compare values
+```
+for i in xrange(2**16):
+  padded = 'A' * len(oracle_ciphertext)
+  if MT19937Cipher(i).encrypt(padded)[prefix_len:] == oracle_ciphertext[prefix_len:]:
+    return i
+```
