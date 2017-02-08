@@ -1,4 +1,4 @@
-import binascii 
+import binascii
 import base64
 from pwn import *
 import itertools as it
@@ -25,14 +25,17 @@ print '4.25 Break read/write AES CTR'
 
 rand_key = os.urandom(16)
 
+
 def edit(ciphertext, offset, newtext):
 	cipher = Cipher(algorithm = algorithms.AES(rand_key), mode = modes.ECB(), backend=default_backend())
+
 	ctr = CTR(cipher, 0)
 
 	ctr.encrypt('0'*offset)
 
 	enc_newtext = ctr.encrypt(newtext)
 	return ciphertext[:offset] + enc_newtext + ciphertext[offset+len(enc_newtext):]
+
 
 def break_readwrite_ctr(ciphertext):
 	'''
@@ -45,7 +48,7 @@ def break_readwrite_ctr(ciphertext):
 		for c in candidates:
 			new_ciphertext = edit(ciphertext, i, c)
 
-			if new_ciphertext == ciphertext:
+			if new_ciphertext[i] == ciphertext[i]:
 				print 'i', c
 				result += c
 
@@ -93,7 +96,7 @@ s = '\x00admin\x00true\x00'
 ciphertext = list(add_strings_and_ctr_encrypt(s))
 
 ciphertext[32] = chr(ord(ciphertext[32]) ^ 59) # 59 is the decimal for ; http://www.nthelp.com/ascii.htm
-ciphertext[38] = chr(ord(ciphertext[38]) ^ 61) # 61 is the decimal for = 
+ciphertext[38] = chr(ord(ciphertext[38]) ^ 61) # 61 is the decimal for =
 ciphertext[43] = chr(ord(ciphertext[43]) ^ 59)
 ciphertext = ''.join(ciphertext)
 
@@ -114,7 +117,7 @@ def add_strings_and_cbc_encrypt(input_text):
 	plaintext = s + input_text.replace(';', '%3B').replace('=', '%3D') + s2
 
 	cipher = Cipher(algorithm = algorithms.AES(rand_key), mode = modes.ECB(), backend=default_backend())
-	cbc = CBC(cipher, iv)	
+	cbc = CBC(cipher, iv)
 
 	return cbc.encrypt(plaintext)
 
@@ -125,17 +128,17 @@ def verify_ascii(plaintext):
 
 def decrypt_and_check_admin(ciphertext):
 	cipher = Cipher(algorithm = algorithms.AES(rand_key), mode = modes.ECB(), backend=default_backend())
-	cbc = CBC(cipher, iv)	
+	cbc = CBC(cipher, iv)
 
 	return ';admin=true;' in cbc.decrypt(ciphertext)
 
 
 ciphertext = add_strings_and_cbc_encrypt('')
 ciphertext = ciphertext[:16] + '\x00'*16 + ciphertext[:16] + ciphertext[48:]
-# by inserting a block of \x00, when we CBC decrypt block 3, we recover the 'plaintext' of block 1 that has not been changed at all
+# by inserting a block of \x00, when we CBC decrypt block 3, we recover the intermediate state of block 1 that has not been changed at all
 # , having been xor'd with all 0's
 # we also obviously have the plaintext of block 1, which we got by xor-ing by the IV
-# so, recovering the IV is trivial - we simply xor out the 'plaintext' from block 1 to get the IV
+# so, recovering the IV is trivial - we simply xor out the intermediate state from block 1 to get the IV
 
 cipher = Cipher(algorithm = algorithms.AES(rand_key), mode = modes.ECB(), backend=default_backend())
 cbc = CBC(cipher, iv)
@@ -145,10 +148,26 @@ found_key = xor(modified_plaintext[:16], modified_plaintext[32:48]) #xor out the
 
 assert rand_key == found_key
 
-print '4.29 break SHA1 keyed mac with sign extension'
+print '4.28 Implement a SHA-1 keyed MAC'
 
+
+def validate_oracle(key, message, digest):
+	return authsha1(key, message) == digest
 
 key = os.urandom(16)
+
+text = "Verify this message"
+
+text_mac_digest = authsha1(key, text)
+
+print validate_oracle(key, text, text_mac_digest)
+
+
+print '4.29 break SHA1 keyed mac with length extension'
+
+
+# key = os.urandom(16)
+key = os.urandom(random.randint(3,40))
 
 message = "comment1=cooking%20MCs;userdata=foo;comment2=%20like%20a%20pound%20of%20bacon"
 message_digest = authsha1(key, message)
@@ -159,26 +178,20 @@ def sha1_pad(message):
 
 	# append the bit '1' to the message
 	padding += b'\x80'
-	
+
 	# append 0 <= k < 512 bits '0', so that the resulting message length (in bytes)
 	# is congruent to 56 (mod 64)
 	padding += b'\x00' * ((56 - (len(message) + 1) % 64) % 64)
-	
+
 	# append length of message (before pre-processing), in bits, as 64-bit big-endian integer
 	message_bit_length = len(message) * 8
 	padding += struct.pack(b'>Q', message_bit_length)
 
 	return message + padding
 
-def validate_oracle(message, digest):
-	return authsha1(key, message) == digest
-
-# need to find length of key. To do so, need to try keys of all lengths, each time substringing out the key  
-
 
 def forgeHash(message, message_digest, extension_data):
 
-	paddedMessageWithKey = sha1_pad(key + message) + extension_data
 	#recreate internal state
 	# the forged_digest picks up at the internal SHA1 5-register state of the valid key+message+padding
 	# and adds my evil extension data to that internal state
@@ -186,29 +199,36 @@ def forgeHash(message, message_digest, extension_data):
 
 	h = unpack_many(message_digest, word_size = 32, endianness='big')
 	# print 'h', h
-	forged_digest = SHA1(h, message_byte_length = len(paddedMessageWithKey) - len(extension_data)).update(extension_data).digest()
 
+	# need to find length of key. To do so, need to try keys of all lengths, each time slicing out the key
 	for keylen_guess in xrange(1,40):
-		# print keylen_guess
 
-		paddedMessageSubstring = paddedMessageWithKey[keylen_guess:]
+		padded_plaintext_with_key_extension = sha1_pad('A'*keylen_guess + message) + extension_data
+
+		len_bytes_processed = len(sha1_pad('A'*keylen_guess + message))
+
+		forged_digest = SHA1(h, message_byte_length = len_bytes_processed).update(extension_data).digest()
+
+		padded_plaintext_no_key = padded_plaintext_with_key_extension[keylen_guess:]
 
 		# then, if we guessed the correct keylen_guess, we properly substring-ed out the key, and
 		# the remaining substring, once appended to the key on server side, will have proper padding
 		# and digest to the same thing as the forged_digest
-	 	
-	 	# print 'forged_message', authsha1(key, paddedMessageSubstring)
 
-		if validate_oracle(paddedMessageSubstring, forged_digest):
+	 	# print 'forged_message', authsha1(key, padded_plaintext_no_key)
+
+		if validate_oracle(key, padded_plaintext_no_key, forged_digest):
+			print "Found keylen_guess", keylen_guess
+
 			# we found the correct keylen_guess
-			# and we can return the valid message and valid digest of the message 
-			return paddedMessageSubstring, forged_digest
-
-	
-message, forged_digest = forgeHash(message, message_digest, ';admin=true')
-print 'message', message
+			# and we can return the valid message and valid digest of the message
+			return padded_plaintext_no_key, forged_digest
 
 
+extended_message, forged_digest = forgeHash(message, message_digest, ';admin=true')
 
-def 
+print "true keylen: ", len(key)
+print "This message: %s \t has a forged digest of %s. A receiver will think that we generated this digest by knowing the key." % (extended_message, forged_digest)
 
+
+print '4.30 Break an MD4 keyed MAC using length extension'

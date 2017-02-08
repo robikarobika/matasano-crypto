@@ -24,7 +24,7 @@ class SHA1(object):
 
     def __init__(self, h = None, message_byte_length = 0):
         # Initial digest variables
-        if h is None: 
+        if h is None:
             self._h = [
                 0x67452301,
                 0xEFCDAB89,
@@ -56,14 +56,14 @@ class SHA1(object):
         # Extend the sixteen 4-byte words into eighty 4-byte words
         for i in range(16, 80):
             w[i] = rol(w[i-3] ^ w[i-8] ^ w[i-14] ^ w[i-16], 1)
-        
+
         # Initialize hash value for this chunk
         a = h0
         b = h1
         c = h2
         d = h3
         e = h4
-        
+
         for i in range(80):
             if 0 <= i <= 19:
                 # Use alternative 1 for f from FIPS PB 180-1 to avoid bitwise not
@@ -73,18 +73,18 @@ class SHA1(object):
                 f = b ^ c ^ d
                 k = 0x6ED9EBA1
             elif 40 <= i <= 59:
-                f = (b & c) | (b & d) | (c & d) 
+                f = (b & c) | (b & d) | (c & d)
                 k = 0x8F1BBCDC
             elif 60 <= i <= 79:
                 f = b ^ c ^ d
                 k = 0xCA62C1D6
-        
-            a, b, c, d, e = ((rol(a, 5) + f + e + k + w[i]) & 0xffffffff, 
+
+            a, b, c, d, e = ((rol(a, 5) + f + e + k + w[i]) & 0xffffffff,
                             a, rol(b, 30), c, d)
-        
+
         # Add this chunk's hash to result so far
         h0 = (h0 + a) & 0xffffffff
-        h1 = (h1 + b) & 0xffffffff 
+        h1 = (h1 + b) & 0xffffffff
         h2 = (h2 + c) & 0xffffffff
         h3 = (h3 + d) & 0xffffffff
         h4 = (h4 + e) & 0xffffffff
@@ -96,7 +96,7 @@ class SHA1(object):
         """Update the current digest.
 
         This may be called repeatedly, even after calling digest or hexdigest.
-        
+
         Arguments:
             arg: bytes, bytearray, or BytesIO object to read from.
         """
@@ -131,17 +131,16 @@ class SHA1(object):
         message_byte_length = self._message_byte_length + len(message)
 
 
-        # append the bit '1' to the message
+        # append the byte '1' to the message
         message += b'\x80'
-        
+
         # append 0 <= k < 512 bits '0', so that the resulting message length (in bytes)
         # is congruent to 56 (mod 64)
         message += b'\x00' * ((56 - (message_byte_length + 1) % 64) % 64)
-        
+
         # append length of message (before pre-processing), in bits, as 64-bit big-endian integer
         message_bit_length = message_byte_length * 8
         message += struct.pack(b'>Q', message_bit_length)
-
 
         # Process the final chunk
         # At this point, the length of the message is either 64 or 128 bytes.
@@ -163,4 +162,3 @@ def authsha1(key, data):
         A hex SHA-1 digest of the input message.
     """
     return SHA1().update(key + data).digest()
-    
