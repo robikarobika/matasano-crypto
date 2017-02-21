@@ -94,7 +94,13 @@ The [RFC](https://tools.ietf.org/html/rfc3174) explains the padding scheme as fo
    message digest.`
 
  1. '1' is appended to message.
- 2. '0's are appended, depending on the original length of the message. Leave space for two 4-byte words at the end.
+ 2. '0's are appended, depending on the original length of the message. Leave space for two 4-byte words at the end, so bring up the message to 448 bits (56 bytes).
+We can do that with
+   ```
+       message += b'\x00' * ((56 - (message_byte_length + 1) % 64) % 64)
+   ```
+ If the message is already >56,
+
  3. Append the 2-word representation of len(message).
  If the message is 40 bytes long,  The two-word representation of 40 is hex `00000000 00000028.`
 
@@ -137,7 +143,7 @@ I need to guess the length of the key so that my message will have the correct p
   AAAAAAAAAAAAAA orig_message \x01\x00\x00...
   ```
 
-3. Pass in the internal state variables and the length of the padded message to a new SHA1, telling the algorithm how many bytes have been processed so far and the current state. Update the SHA1 with the extension data, getting a forged digest.
+3. Pass in the internal state variables and the length of the padded message to a new SHA1, telling the algorithm how many bytes have been processed so far(`message_byte_length`) and the current state. Update the SHA1 with the extension data, getting a forged digest.
 
   We're essentially forging the digest for:
   ```
@@ -145,7 +151,7 @@ I need to guess the length of the key so that my message will have the correct p
   AAAAAAAAAAAAAA orig_message \x01\x00\x00... ;admin=true
   ```
 
-3. Now, remove the key padding from the extended message, leaving
+3. Now, remove the key padding from the extended message, leaving the forged message:
 ```
 orig_message \x01\x00\x00... ;admin=true
 ```
@@ -161,10 +167,68 @@ orig_message \x01\x00\x00... ;admin=true
 
 I successfully created a forged digest for the message `comment1=cooking%20MCs;userdata=foo;comment2=%20like%20a%20pound%20of%20bacon\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x98;admin=true` that the receiver validates!
 
-## Challenge 30 Break an MD4 keyed MAC using length extension
+## Challenge 30 Break an ~~MD4~~ MD5 keyed MAC using length extension
+
+I decided I like MD5 better than MD4, and there's more implementations out there.
+
+MD5 is susceptible to the same length extension attack as above because it follows the MD construction, which includes padding and the fact that the output of the hash gives all the state needed to continue, or extend, the hash.
+
+Here's how MD5 works:
+
+The padding scheme is very similar to SHA-1 — the only difference being that the length is added on as big-endian packed instead of little-endian packed.
+
+There are four internal state variables - A, B, C, D, each 32 bits. These are initialized to
+```
+word A: 01 23 45 67
+word B: 89 ab cd ef
+word C: fe dc ba 98
+word D: 76 54 32 10
+
+```
+
+We also use a table of 64 values generated from the `sine` function, `self.k`.
+
+1. For each chunk, which is 512 bits, we unpack into 16 words of 32-bits.
+
+2. Then, we do 64 transforms, split into four rounds. each transform taking: an incrementing-by-one index into the `sin` table, a function `f` specific to the round, a `lrot` value, and an index into our array of 16 words.
+
+  At the end of each transform, the `ABCD` values are updated as follows:
+
+  ```
+    a, b, c, d = d, x & 0xffffffff, b, c
+  ```
+  where `x` is the result of the transform.
+
+The message digest produced as output is the concat of A, B, C, D, 128 bits, or 16-bytes in length.
+
+I use the implementation at https://github.com/FiloSottile/crypto.py/blob/master/2/md5.py, but it needs to be extended in several ways for this challenge.
+
+The implementation must allow the caller to set the internal state variables so that I can continue the hash. I add
+```
+if state_array:
+        self.A = state_array[0]
+        self.B = state_array[1]
+        self.C = state_array[2]
+        self.D = state_array[3]
+    else:
+        #initial magic
+        self.A, self.B, self.C, self.D = (0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476)
+```
+
+The implementation also must allow the caller to specify how many bytes have been processed so far, the `message_byte_length` option above.
 
 
 
 ## Challenge 31 Implement and break HMAC-SHA1 with an artificial timing leak
 
+I use Tornado as my web framework.
+
+I take in a `file` and `signature` URL param, and implement an `insecure_compare` function that converts the values to ascii, then byte-by-byte compares, adding a timing delay of 50ms.
+
+I iterate through all possible bytes, making a request with my known bytes + byte_guess + padding.
+
+I simply take the maximum delay each time, which would occur when I've guessed the byte correctly, causing another sleep of 50ms, for an added delay of 100ms.
+
 ## Challenge 32 Break HMAC-SHA1 with a slightly less artificial timing leak
+
+When I have such a small timing leak (5ms), network delays make the previous exploit unreliable. I need to normalize over multiple runs (I choose 10) to be able to tell whether the maximum is indeed the correct HMAC byte.  

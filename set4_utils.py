@@ -4,6 +4,7 @@
 from __future__ import print_function
 import struct
 import io
+import binascii
 
 from pwn import *
 import itertools as it
@@ -130,7 +131,6 @@ class SHA1(object):
         message = self._unprocessed
         message_byte_length = self._message_byte_length + len(message)
 
-
         # append the byte '1' to the message
         message += b'\x80'
 
@@ -162,3 +162,99 @@ def authsha1(key, data):
         A hex SHA-1 digest of the input message.
     """
     return SHA1().update(key + data).digest()
+
+
+
+lrot = lambda x, n: (x << n) | (x >> (32 - n))
+
+
+class MD5():
+    # r specifies the per-round shift amounts
+    r = [7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
+         5,  9, 14, 20, 5,  9, 14, 20, 5,  9, 14, 20, 5,  9, 14, 20,
+         4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
+         6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21]
+
+    # Use binary integer part of the sines of integers (Radians) as constants
+    k = [int(math.floor(abs(math.sin(i + 1)) * (2 ** 32))) for i in range(64)]
+
+    def __init__(self, message, message_byte_length = 0, state_array = None):
+        if state_array:
+            self.A = state_array[0]
+            self.B = state_array[1]
+            self.C = state_array[2]
+            self.D = state_array[3]
+            print("Set up intermediate state")
+        else:
+            #initial magic
+            self.A, self.B, self.C, self.D = (0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476)
+
+        if message_byte_length:
+            self._message_byte_length = message_byte_length + len(message)
+        else:
+            self._message_byte_length = len(message)
+
+        print("self._message_byte_length", self._message_byte_length)
+
+        while len(message) > 64:
+            self._handle(message[:64])
+            message = message[64:]
+
+        self._unprocessed = message
+
+    def _handle(self, chunk):
+        w = list(struct.unpack('<' + 'I' * 16, chunk))
+
+        a, b, c, d = self.A, self.B, self.C, self.D
+
+        for i in range(64):
+            if i < 16:
+                f = (b & c) | ((~b) & d)
+                g = i
+            elif i < 32:
+                f = (d & b) | ((~d) & c)
+                g = (5 * i + 1) % 16
+            elif i < 48:
+                f = b ^ c ^ d
+                g = (3 * i + 5) % 16
+            else:
+                f = c ^ (b | (~d))
+                g = (7 * i) % 16
+
+            x = b + lrot((a + f + self.k[i] + w[g]) & 0xffffffff, self.r[i])
+            a, b, c, d = d, x & 0xffffffff, b, c
+
+        self.A = (self.A + a) & 0xffffffff
+        self.B = (self.B + b) & 0xffffffff
+        self.C = (self.C + c) & 0xffffffff
+        self.D = (self.D + d) & 0xffffffff
+
+    def digest(self):
+        message = self._unprocessed
+        # append the byte '1' to the message
+        message += '\x80'
+
+        # append 0 <= k < 512 bits '0', so that the resulting message length (in bytes)
+        # is congruent to 56 (mod 64)
+        message += '\x00' * ((56 - (self._message_byte_length+1) % 64) % 64)
+
+        # append length of message (before pre-processing), in bits, as 64-bit little-endian integer
+        length = struct.pack('<Q', self._message_byte_length * 8)
+        message += length
+
+        print("PADDED MESSAGE", message)
+        while len(message):
+            self._handle(message[:64])
+            message = message[64:]
+
+        return struct.pack('<IIII', self.A, self.B, self.C, self.D)
+
+    def hexdigest(self):
+        return binascii.hexlify(self.digest()).decode()
+
+
+def authmd5(key, message):
+    '''
+        Returns a secret-key-prefix MD5 MAC
+    '''
+    return MD5(key+message).digest()

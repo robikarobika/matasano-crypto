@@ -165,9 +165,11 @@ print validate_oracle(key, text, text_mac_digest)
 
 print '4.29 break SHA1 keyed mac with length extension'
 
+# Make sure MD5 implem is correct
+assert MD5("hello").hexdigest() == '5d41402abc4b2a76b9719d911017c592'
 
-# key = os.urandom(16)
-key = os.urandom(random.randint(3,40))
+key = os.urandom(16)
+# key = os.urandom(random.randint(3,40))
 
 message = "comment1=cooking%20MCs;userdata=foo;comment2=%20like%20a%20pound%20of%20bacon"
 message_digest = authsha1(key, message)
@@ -231,4 +233,64 @@ print "true keylen: ", len(key)
 print "This message: %s \t has a forged digest of %s. A receiver will think that we generated this digest by knowing the key." % (extended_message, forged_digest)
 
 
-print '4.30 Break an MD4 keyed MAC using length extension'
+print '4.30 Break an MD5 keyed MAC using length extension'
+
+# key = os.urandom(random.randint(3,40))
+key = os.urandom(14)
+
+untamp_message = "comment1=cooking%20MCs;userdata=foo;comment2=%20like%20a%20pound%20of%20bacon"
+untamp_message_digest = authmd5(key, untamp_message)
+
+
+def md5_pad(message):
+	padding = ''
+
+	# append the bit '1' to the message
+	padding += b'\x80'
+
+	# append 0 <= k < 512 bits '0', so that the resulting message length (in bytes)
+	# is congruent to 56 (mod 64)
+	padding += b'\x00' * ((56 - (len(message) + 1) % 64) % 64)
+
+	# append length of message (before pre-processing), in bits, as 64-bit big-endian integer
+	message_bit_length = len(message) * 8
+	padding += struct.pack(b'<Q', message_bit_length)
+
+	return message + padding
+
+
+def validate_md5_mac(key, message, digest):
+	return authmd5(key, message) == digest
+
+
+def forge_hash_md5(message, message_digest, extension_data):
+
+	md5_state_array = unpack_many(message_digest, word_size = 32, endianness='big')
+
+	# print [hex(state) for state in md5_state_array]
+
+	for keylen_guess in xrange(14, 15):
+		# print keylen_guess
+		padded_plaintext_with_key_extension = md5_pad('A'*keylen_guess + message) + extension_data
+
+		# print padded_plaintext_with_key_extension
+
+		len_bytes_processed = len(md5_pad('A'*keylen_guess + message))
+
+		# print "len_bytes_processed", len_bytes_processed
+
+		forged_digest = MD5(extension_data, message_byte_length = len_bytes_processed, state_array = md5_state_array).digest()
+
+		padded_plaintext_no_key = padded_plaintext_with_key_extension[keylen_guess:] # this is the forged message
+
+		# print "padded_plaintext_no_key", padded_plaintext_no_key
+
+		if validate_md5_mac(key, padded_plaintext_no_key, forged_digest):
+			# print "Found keylen_guess md5", keylen_guess
+
+			# we found the correct keylen_guess
+			# and we can return the valid message and valid digest of the message
+			return padded_plaintext_no_key, forged_digest
+
+
+# ext_message, forged_digest = forge_hash_md5(untamp_message, untamp_message_digest, ";admin=true")
