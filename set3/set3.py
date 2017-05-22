@@ -77,7 +77,7 @@ mt = MT19937(5489)
 assert mt.get_number() == 3499211612
 
 
-print '3.21, Crack MT seed'
+print '3.22, Crack MT seed'
 
 
 def random_wait():

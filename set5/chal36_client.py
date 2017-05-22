@@ -44,7 +44,7 @@ print "C: Received B"
 # Compute scrambling parameter u
 u = int(hashlib.sha256(str(A) + str(B)).hexdigest(), 16)
 
-# Generate
+# Generate auth attempt hash
 auth_attempt = int(hashlib.sha256(salt+passwd).hexdigest(), 16)
 
 S = B-k*pow(g, auth_attempt, N)

@@ -8,6 +8,8 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 
 import gensafeprime
+import math
+import gmpy
 import hashlib
 import os
 import random
@@ -15,7 +17,7 @@ import sys
 sys.path.append('..')
 
 from set5_utils import *
-
+from set6_utils import *
 
 E_RSA = 3
 
@@ -36,55 +38,7 @@ shared_key_b = modexp(B, a, p)
 assert shared_key_b == shared_key_a
 
 
-def egcd(r0, r1):
-    '''
-    takes the modulus in r0, and the element in r1
-    returns tuple of (gcd, coefficient 1, coefficient 2) s.t. s0*r0 + s1*r1 = gcd
-    if first value is a modulus, gcd = 1 and t0 is modinv of r1
-    '''
-    old_r0, old_r1 = r0, r1
-    s0, s1 = 1, 0
-    t0, t1 = 0, 1
-
-    while r1 != 0:
-        remainder = r0%r1
-        q = (r0-remainder)/r1
-
-        assert q*r1 + remainder == r0
-
-        r0, r1 = r1, remainder
-
-        new_s = s0 - q*s1
-        new_t = t0 - q*t1
-
-        assert new_s*old_r0 + new_t*old_r1 == remainder
-
-        s0, s1 = s1, new_s
-        t0, t1 = t1, new_t
-
-    return (r0, s0, t0)
-
-
-def modinv(mod, a):
-    (gcd, a, b) = egcd(mod, a)
-
-    if gcd != 1:
-        return None
-    return b % mod
-
-def rsa_keygen(n):
-    # use openssl to generate primes
-    p = gensafeprime.generate(512)
-    q = gensafeprime.generate(512)
-
-    N = p*q
-    phi = (p-1)*(q-1)
-
-    d = modinv(phi, E_RSA)
-
-    sk = (d, N)
-    pk = (E_RSA, N)
-    return pk, sk
+print "5.39 Implement RSA"
 
 # pk, sk = rsa_keygen(1024)
 #
@@ -99,4 +53,39 @@ def rsa_keygen(n):
 #
 # assert decrypted_text == 'hello'
 
-print modinv(67, 3)
+
+print "5.40 E=3 RSA Broadcast attack"
+
+pk1, sk1 = rsa_keygen(256)
+pk2, sk2 = rsa_keygen(256)
+pk3, sk3 = rsa_keygen(256)
+
+N1 = pk1[1]
+N2 = pk2[1]
+N3 = pk3[1]
+
+s = "can't touch this"
+s = bytes2int(s)
+
+ctext1 = pow(s, pk1[0], N1)
+ctext2 = pow(s, pk2[0], N2)
+ctext3 = pow(s, pk3[0], N3)
+
+# Use CRT to decrypt ciphertexts
+
+m_s_1 = N2*N3
+y1 = ctext1 * m_s_1 * modinv(N1, m_s_1)
+
+m_s_2 = N1*N3
+y2 = ctext2 * m_s_2 * modinv(N2, m_s_2)
+
+m_s_3 = N2*N1
+y3 = ctext3 * m_s_3 * modinv(N3, m_s_3)
+
+mod_prod = N1*N2*N3
+
+result = (y1 + y2 + y3) % mod_prod
+cube_root = gmpy.mpz(result).root(3)[0].digits()
+decrypted_text = int2bytes(int(cube_root))
+
+assert decrypted_text == "can't touch this"
