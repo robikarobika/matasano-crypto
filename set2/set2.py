@@ -19,13 +19,6 @@ from set2_utils import *
 
 print '2.9 PKCS#7 padding'
 
-def padPKCS7(x, padto):
-	diff = (padto - (len(x)%padto)) % 16
-
-	padded = x + pack(diff, 'all')*diff
-
-	return padded
-
 expected = "YELLOW SUBMARINE\x04\x04\x04\x04"
 
 assert expected == padPKCS7("YELLOW SUBMARINE", 20)

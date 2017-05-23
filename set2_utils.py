@@ -10,6 +10,14 @@ import random
 import json
 
 
+def padPKCS7(x, padto):
+	diff = (padto - (len(x)%padto)) % 16
+
+	padded = x + pack(diff, 'all')*diff
+
+	return padded
+
+
 class CBC():
 
 	def __init__(self, cipher, iv):
