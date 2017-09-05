@@ -45,4 +45,3 @@ def construct_message(from_id, *tuples):
     return msg
 
 
-attacker

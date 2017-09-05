@@ -33,7 +33,7 @@ class CTR():
 
 		keystream = self.carry_over_bytes
 		while len(keystream) < len(plaintext):
-			keyblock = e.update(p64(self.nonce, 'little') + p64(self.counter, 'little'))
+			keyblock = e.update(p64(self.nonce) + p64(self.counter))
 			keystream += keyblock
 			self.counter += 1
 
