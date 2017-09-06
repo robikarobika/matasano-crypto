@@ -41,7 +41,7 @@ r.sendline(mac)
 print "Perform attack by modifying IV"
 
 forged_msg = "from=3&to=2&amount=1000"
-forged_padded = padPKCS7(forged_msg, 16)
+forged_padded = padPKCS7(fsetorged_msg, 16)
 print forged_padded
 
 # We're xoring the forged message and msg to get the difference between the two, and then applying to the iv

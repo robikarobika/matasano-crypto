@@ -15,7 +15,6 @@ import random
 def CBC_MAC(key, iv, padded):
     cipher = Cipher(algorithm = algorithms.AES(key), mode = modes.CBC(iv), backend=default_backend())
     enc = cipher.encryptor()
-    dec = cipher.decryptor()
 
     ciphertext = enc.update(padded) + enc.finalize()
     mac = ciphertext[-16:]

@@ -242,7 +242,6 @@ class MD5():
         length = struct.pack('<Q', self._message_byte_length * 8)
         message += length
 
-        print("PADDED MESSAGE", message)
         while len(message):
             self._handle(message[:64])
             message = message[64:]
