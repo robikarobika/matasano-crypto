@@ -114,21 +114,6 @@ def get_intermed_states(msg, init_state, cipher_f):
     return intmed_states
 
 
-k = 5
-init_state = os.urandom(2)
-
-expandable_msg_state, fragments = gen_expandable(k)
-# fragments = list(reversed(fragments))
-
-print(fragments)
-
-target_long_msg = os.urandom(100)
-intmed_states = get_intermed_states(target_long_msg, init_state, blowfish_weak_hash)
-
-# Exclude first k intermediate states, because expandable message cannot be made shorter than k blocks, so we wouldn't be able to generate a prefix of len < k 
-intmed_states[:k] = ['fake'] * k
-print("intermediate states", intmed_states)
-
 # Find a single-block bridge to an intermediate state of target large msg
 
 def find_bridge_block(expandable_msg_state):
@@ -140,19 +125,11 @@ def find_bridge_block(expandable_msg_state):
             print("Found linking block!")
             return block, intmed_states.index(new_hash)
 
-# expandable_msg_state = fragments[0][2]
-linking_block, intmed_state_index = find_bridge_block(expandable_msg_state)
-
-print("linking block", linking_block, "index: ", intmed_state_index)
 
 
 def generate_prefix(target_len):
     # Takes in target_len, a number of blocks we want the prefix to be
     # Basically for each bit of the binary representation of desired length, select one or the other of the expandable messages, which come in sets of (1, power of 2 + 1)
-
-    # print("target len", target_len)
-    # binary_len = list(reversed("{0:b}".format(target_len - k)))
-    # print("binary", "".join(binary_len))
 
     prefix = b""
     assert len(fragments) == k
@@ -179,20 +156,130 @@ def generate_prefix(target_len):
     assert len(prefix)//8 == target_len
     return prefix
 
-prefix = generate_prefix(intmed_state_index)
-print(repr(prefix))
 
-second_preimage = prefix + linking_block
-second_preimage += target_long_msg[len(second_preimage): ]
+# k = 5
+# init_state = os.urandom(2)
 
-print("length of second preimage", len(second_preimage))
-assert len(second_preimage) == len(target_long_msg)
+# expandable_msg_state, fragments = gen_expandable(k)
 
-second_preimage_hash = iterated_hash(second_preimage, init_state, blowfish_weak_hash, message_byte_length, padding = True)
-target_msg_hash = iterated_hash(target_long_msg, init_state, blowfish_weak_hash, message_byte_length, padding = True)
+# target_long_msg = os.urandom(100)
+# intmed_states = get_intermed_states(target_long_msg, init_state, blowfish_weak_hash)
 
-print("second preimage hash", repr(second_preimage_hash))
-print("target msg hash", repr(target_msg_hash))
+# # Exclude first k intermediate states, because expandable message cannot be made shorter than k blocks, so we wouldn't be able to generate a prefix of len < k 
+# intmed_states[:k] = ['fake'] * k
+
+# # Find a bridge block that intercepts one of the intermediate hashes of the target message
+# # The key is that the starting state of bridge block is the final state of the expandable message
+# linking_block, intmed_state_index = find_bridge_block(expandable_msg_state)
+# print("linking block", linking_block, "index: ", intmed_state_index)
+
+
+# prefix = generate_prefix(intmed_state_index)
+# print(repr(prefix))
+
+# second_preimage = prefix + linking_block
+# second_preimage += target_long_msg[len(second_preimage): ]
+
+# print("length of second preimage", len(second_preimage))
+# assert len(second_preimage) == len(target_long_msg)
+
+# second_preimage_hash = iterated_hash(second_preimage, init_state, blowfish_weak_hash, message_byte_length, padding = True)
+# target_msg_hash = iterated_hash(target_long_msg, init_state, blowfish_weak_hash, message_byte_length, padding = True)
+
+# print("second preimage hash", repr(second_preimage_hash))
+# print("target msg hash", repr(target_msg_hash))
+
+# assert second_preimage_hash == target_msg_hash
+
+
+print("Challenge 54 Kelsey and Kohno's Nostradamus attack")
+
+def pairwise(iterable):
+    "s -> (s0, s1), (s2, s3), (s4, s5), ..."
+    a = iter(iterable)
+    return zip(a, a)
+
+# Note that this is pretty inefficient, we could have used a parallel search algorithm for this part instead of grabbing the leaves by the pair and fixing the message of one... 
+def find_collision(state1, state2):
+    single_block = b'\x01'*8
+    target_hash = iterated_hash(single_block, state1, blowfish_weak_hash, message_byte_length)
+
+    print("target hash", repr(target_hash))
+
+    for msg in (num.to_bytes(8, byteorder="little") for num in range(2**(message_byte_length*8))):
+
+        new_hash = iterated_hash(msg, state2, blowfish_weak_hash, message_byte_length)
+
+        if new_hash == target_hash:
+            print("Found collision with this pair %s %s" % (state1, state2))
+            return single_block, msg, target_hash
+
+
+hash_length = 2
+def gen_collision_tree(k):
+    init_hash_states = [i.to_bytes(hash_length, byteorder='little') for i in range(2**k)]
+
+    collision_tree = []
+
+    hash_states = init_hash_states
+    for i in range(0, k):
+        next_layer = []
+        this_layer = []
+        print("i", i)
+        for state1, state2 in pairwise(hash_states):
+            # Generate a collision with these two states
+            # this becomes the parent in the tree 
+            collide_block1, collide_block2, collide_hash = find_collision(state1, state2)
+
+            # Add the blocks to this layer of the collision tree
+            this_layer.append((state1, collide_block1))
+            this_layer.append((state2, collide_block2))
+
+            next_layer.append(collide_hash)
+
+        collision_tree.append(this_layer)
+        print("collision tree", collision_treae)
+        hash_states = next_layer
+
+    collision_tree.append(next_layer)
+
+    assert len(collision_tree[-1]) == 1
+    return collision_tree
+
+
+# root of collision tree is our magic prediction
+collision_tree = gen_collision_tree(3)
+
+# prediction = collision_tree[-1]
+
+# nostradamus_msg = b"The world will end in 2016"
+
+# num_msg_blocks = len(nostradamus_msg)//8 + 1
+
+# glue_blocks = ("\x00"*8) * (k - num_msg_blocks) + "\x00"*(8 - len(nostradamus_msg)%8)
+
+# nostradamus_msg += glue_blocks
+
+# assert len(nostradamus_msg)%8 == 0
+
+# # Find the last bridge block that will collide with a leaf in my tree
+# nostradamus_msg_state = iterated_hash(nostradamus_msg, init_state, blowfish_weak_hash, message_byte_length)
+# for msg in (num.to_bytes(8, byteorder="little") for num in range(2**(message_byte_length*8))):
+
+#     new_hash = iterated_hash(msg, nostradamus_msg_state, blowfish_weak_hash, message_byte_length)
+
+#     if new_hash in leaves:
+
+
+
+
+# Now, follow the path from the leaf to the root, appending all the colliding message blocks to get to the root hash
+
+
+
+
+
+
 
 
 
