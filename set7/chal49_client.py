@@ -25,8 +25,8 @@ key = "YELLOW SUBMARINE"
 
 r = remote('localhost', 5000)
 
-msg = "from=1&to=2&amount=1000"
-padded = padPKCS7(msg, 16)
+normal_msg = "from=normal&to=attacker&amount=1000"
+padded = padPKCS7(normal_msg, 16)
 print padded
 
 iv = os.urandom(16)
@@ -40,17 +40,16 @@ r.sendline(mac)
 
 print "Perform attack by modifying IV"
 
-forged_msg = "from=3&to=2&amount=1000"
-forged_padded = padPKCS7(fsetorged_msg, 16)
-print forged_padded
+evil_msg = "from=victim&to=attacker&amount=1000"
+evil_padded = padPKCS7(evil_msg, 16)
 
-# We're xoring the forged message and msg to get the difference between the two, and then applying to the iv
-forged_iv = xor(forged_msg[:16], msg[:16], iv)
-forged_mac = CBC_MAC(key, forged_iv, forged_padded)
+# We're xoring the forged message and normal msg to get the difference between the two, and then applying it to the iv
+forged_iv = xor(evil_msg[:16], normal_msg[:16], iv)
+forged_mac = CBC_MAC(key, forged_iv, evil_padded)
 
 assert forged_mac == mac
 
 print "C->S: Sending Forged Message|IV|MAC"
-r.sendline(forged_padded)
+r.sendline(evil_padded)
 r.sendline(forged_iv)
 r.sendline(forged_mac)

@@ -28,22 +28,25 @@ key = "YELLOW SUBMARINE"
 
 l = listen(5000)
 
-while True:
-    msg = l.recvline(keepends = False)
-    iv = l.recvline(keepends = False)
-    mac = l.recvline(keepends = False)
+try:
+    while True:
+        msg = l.recvline(keepends = False)
+        iv = l.recvline(keepends = False)
+        mac = l.recvline(keepends = False)
 
-    key = "YELLOW SUBMARINE"
+        key = "YELLOW SUBMARINE"
 
-    gen_mac = CBC_MAC(key, iv, msg)
+        gen_mac = CBC_MAC(key, iv, msg)
 
-    if gen_mac == mac:
-        print "MAC Verified"
+        if gen_mac == mac:
+            print "MAC Verified"
 
-        params = msg.split("&")
-        amount = params[2].split("=")[1]
-        from_id = params[0].split("=")[1]
-        to_id = params[1].split("=")[1]
-        print "Sending %s from %s to %s"% (amount, from_id, to_id)
-    else:
-        print "MAC Failed"
+            params = msg.split("&")
+            amount = params[2].split("=")[1]
+            from_id = params[0].split("=")[1]
+            to_id = params[1].split("=")[1]
+            print "Sending %s from %s to %s"% (amount, from_id, to_id)
+        else:
+            print "MAC Failed"
+except EOFError:
+    exit()

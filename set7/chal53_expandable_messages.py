@@ -271,8 +271,6 @@ collision_tree = gen_collision_tree(3)
 #     if new_hash in leaves:
 
 
-
-
 # Now, follow the path from the leaf to the root, appending all the colliding message blocks to get to the root hash
 
 

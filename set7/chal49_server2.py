@@ -24,31 +24,45 @@ import tornado.web
 key = "YELLOW SUBMARINE"
 iv = '\x00'*16
 
-l = listen(5000)
+l = listen(9999)
 
-while True:
-    msg = l.recvline(keepends = False)
-    mac = l.recvline(keepends = False)
+def parse_and_send(tx_list):
+    for to_amt_pair in tx_list:
+        if len(to_amt_pair.split(":")) != 2:
+            continue
 
-    CBC_MAC(key, iv, msg)
+        to_id = to_amt_pair.split(":")[0]
+        amount = to_amt_pair.split(":")[1]
+        match = re.match(b'[0-9]+', amount)
+        amount = match.group(0)
 
-    if gen_mac == mac:
-        print "MAC Verified"
+        print "Sending %s from %s to %s" % (amount, from_id, to_id)
 
-        params = msg.split("&")
-        from_param, tx_list_param = params[0], params[1]
+try:
+    while True:
+        msg = l.recvline(keepends = False)
+        mac = l.recvline(keepends = False)
 
-        split_from = from_param.split("=")
-        assert split_from[0] == "from"
-        from_id = split_from[1]
+        print "msg", repr(msg)
+        print "mac", repr(mac)
 
-        tx_list = tx_list_param.split("=")[1].split(";")
+        gen_mac = CBC_MAC(key, iv, msg)
 
-        for to_amt_pair in tx_list:
-            to_id = to_amt_pair.split(":")[0]
-            amount = to_amt_pair.split(":")[1]
+        if gen_mac == mac:
+            print "MAC Verified"
 
-            print "Sending %s from %s to %s" % (amount, from_id, to_id)
+            params = msg.split("&", 1)
+            from_param, tx_list_param = params[0], params[1]
 
-    else:
-        print "MAC Failed"
+            split_from = from_param.split("=")
+            assert split_from[0] == "from"
+            from_id = split_from[1]
+
+            tx_list = tx_list_param.split("=", 1)[1].split(";")
+
+            parse_and_send(tx_list)
+
+        else:
+            print "MAC Failed"
+except EOFError:
+    exit()
