@@ -1,6 +1,4 @@
-# matasano-crypto
-
-[Matasano Crypto Challenges](https://cryptopals.com) solved by wangray
+# [Matasano Crypto Challenges](https://cryptopals.com) solved by wangray
 
 Working through matasano crypto challenges in python 2.7
 
