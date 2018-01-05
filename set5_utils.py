@@ -1,6 +1,5 @@
 import binascii
 import base64
-from pwn import *
 import itertools as it
 from pprint import *
 import operator as op
@@ -13,8 +12,9 @@ import hashlib
 import os
 import random
 import sys
+from Crypto.Util.number import getPrime, getStrongPrime
 
-E_RSA = 3
+E_RSA = 65537
 
 def modexp_slow(base, exp, mod):
     result = 1
@@ -53,7 +53,6 @@ def decrypt(key, iv, msg):
     plaintext = decryptor.update(msg) + decryptor.finalize()
     return plaintext
 
-
 #RSA
 def egcd(r0, r1):
     '''
@@ -67,7 +66,7 @@ def egcd(r0, r1):
 
     while r1 != 0:
         remainder = r0%r1
-        q = (r0-remainder)/r1
+        q = (r0-remainder)//r1
 
         assert q*r1 + remainder == r0
 
@@ -88,14 +87,13 @@ def modinv(mod, a):
     (gcd, a, b) = egcd(mod, a)
 
     if gcd != 1:
-        return None
+        raise ValueError
     return b % mod
 
 def rsa_keygen(n):
     # use openssl to generate primes
-    p = gensafeprime.generate(n)
-    q = gensafeprime.generate(n)
-
+    p = gensafeprime.generate(n//2)
+    q = gensafeprime.generate(n//2)
     N = p*q
     phi = (p-1)*(q-1)
 
